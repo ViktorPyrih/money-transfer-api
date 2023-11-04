@@ -6,6 +6,7 @@ import com.geeksforless.money.transfer.api.service.TransactionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.http.MediaType;
 
 import static com.geeksforless.money.transfer.api.fixture.AccountTestData.ID;
@@ -20,8 +21,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(TransactionController.class)
 class TransactionControllerTest extends BaseMvcTest {
 
+    private static final String MESSAGE = "$.message";
+    private static final String TRANSACTIONS_PATH = "/api/v1/transactions";
+
     private static final String SAME_ACCOUNT_TRANSFER = "Source and destination accounts are the same: %d".formatted(ID);
     private static final String INSUFFICIENT_FUNDS = "Account: %d doesn't have enough funds to initiate a transfer".formatted(ID);
+    private static final String DEADLOCK_DETECTED = "Deadlock detected";
 
     @MockBean
     private TransactionService transactionService;
@@ -31,12 +36,12 @@ class TransactionControllerTest extends BaseMvcTest {
 
         when(transactionService.create(any())).thenThrow(new SameAccountTransferException(ID));
 
-        mvc.perform(post("/api/v1/transactions")
+        mvc.perform(post(TRANSACTIONS_PATH)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(MAPPER.writeValueAsString(TRANSACTION_REQUEST_SAME_ACCOUNT)))
                 .andDo(print())
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", equalTo(SAME_ACCOUNT_TRANSFER)));
+                .andExpect(jsonPath(MESSAGE, equalTo(SAME_ACCOUNT_TRANSFER)));
 
     }
 
@@ -45,13 +50,25 @@ class TransactionControllerTest extends BaseMvcTest {
 
         when(transactionService.create(any())).thenThrow(new InsufficientFundsException(ID));
 
-        mvc.perform(post("/api/v1/transactions")
+        mvc.perform(post(TRANSACTIONS_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(MAPPER.writeValueAsString(TRANSACTION_REQUEST)))
                 .andDo(print())
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", equalTo(INSUFFICIENT_FUNDS)));
+                .andExpect(jsonPath(MESSAGE, equalTo(INSUFFICIENT_FUNDS)));
 
+    }
+
+    @Test
+    void create_whenDeadlockDetected_shouldReturnConflictError() throws Exception {
+        when(transactionService.create(any())).thenThrow(new CannotAcquireLockException(DEADLOCK_DETECTED));
+
+        mvc.perform(post(TRANSACTIONS_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(MAPPER.writeValueAsString(TRANSACTION_REQUEST)))
+                .andDo(print())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath(MESSAGE, equalTo(DEADLOCK_DETECTED)));
     }
 
     @Test
@@ -59,7 +76,7 @@ class TransactionControllerTest extends BaseMvcTest {
 
         when(transactionService.create(any())).thenReturn(TRANSACTION_RESPONSE);
 
-        mvc.perform(post("/api/v1/transactions")
+        mvc.perform(post(TRANSACTIONS_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(MAPPER.writeValueAsString(TRANSACTION_REQUEST)))
                 .andDo(print())

@@ -5,6 +5,7 @@ import com.geeksforless.money.transfer.api.exception.InsufficientFundsException;
 import com.geeksforless.money.transfer.api.exception.SameAccountTransferException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -32,6 +33,13 @@ public class ApiAdvice {
     @ExceptionHandler(AccountNotFoundException.class)
     public ApiError handleAccountNotFoundException(AccountNotFoundException exception, WebRequest webRequest) {
         log.warn("Account not found for request: {}", webRequest, exception);
+        return buildApiError(exception, webRequest);
+    }
+
+    @ResponseStatus(HttpStatus.CONFLICT)
+    @ExceptionHandler(CannotAcquireLockException.class)
+    public ApiError handleCannotAcquireLockException(CannotAcquireLockException exception, WebRequest webRequest) {
+        log.warn("Deadlock occurred for request: {}", webRequest, exception);
         return buildApiError(exception, webRequest);
     }
 
