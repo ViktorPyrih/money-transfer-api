@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:/money-transfer-db
+    username: admin
+    password: admin
+  jpa:
+    generate-ddl: true
+    hibernate:
+      show-sql: true
+      ddl-auto: update
